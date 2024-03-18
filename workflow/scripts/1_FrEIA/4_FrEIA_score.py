@@ -126,10 +126,12 @@ def mannwhitneyu_test(dat_Df, meta_df, args):
 
     pool = Pool(processes=args.threads)
 
-    mwu_Df = mwu_Df.append(pool.map(partial(mannwhitneyu_test_worker,
+    pd_to_concat = pool.map(partial(mannwhitneyu_test_worker,
                                             dat_Df,
                                             args),
-                                    base_L))
+                                    base_L)
+    pd_to_concat.insert(0, mwu_Df)
+    mwu_Df = pd.concat(pd_to_concat)
     pool.close()
     pool.join()
 
@@ -141,9 +143,17 @@ def mannwhitneyu_test(dat_Df, meta_df, args):
 def logfc(dat_Df, meta_df, args):
     dat_Df = dat_Df.merge(meta_df[["sample_name",
                                    "phenotype"]])
+    print(dat_Df['phenotype'].unique())
+    print(dat_Df)
     # 1. Calculate the median proportion per base.
     median_Df = dat_Df.groupby(["base", "phenotype"],
                                observed=True).Proportion.median().reset_index(level="phenotype")
+    
+    print('medianDF')
+    print(median_Df['phenotype'].unique())
+    print(median_Df.phenotype)
+    print(args.ctr_name)
+    print(args.cas_name)
 
     # 2. Compute log10FC per base.
     control_median_L = median_Df[median_Df.phenotype == args.ctr_name].Proportion
@@ -311,11 +321,13 @@ def euclidean_FrEIA_score(prop_df, div_df, control_V, case_V, args):
     pool = Pool(processes=args.threads)
 
     samp_L = prop_df.sample_name.unique().tolist()
-    ed_Df = ed_Df.append(pool.map(partial(euclidean_worker,
+    pd_to_concat = pool.map(partial(euclidean_worker,
                                           samp_df,
                                           control_df,
                                           case_df),
-                                  samp_L))
+                                  samp_L)
+    pd_to_concat.insert(0, ed_Df)
+    ed_Df = pd.concat(pd_to_concat)
     pool.close()
     pool.join()
 
@@ -329,8 +341,11 @@ def main():
                           sep=",")  # Read proportions.
     div_Df = pd.read_csv("".join((args.input, "/", "Dat_GT__MDS_sample.csv")),
                           sep=",")  # Read diversity.
+
     meta_Df = pd.read_csv(args.metadata,
-                          sep=",")  # Read metadata.
+                          sep="\s+")  # Read metadata.
+
+    meta_Df = meta_Df.rename(columns={"group": "phenotype"})
     if args.median_panel:
         med_pan_Df = pd.read_csv(args.median_panel,
                                  sep=",")  # Read panel of medians.
@@ -341,7 +356,7 @@ def main():
     prop_Df = CastDataTypes(prop_Df)  # Cast to cathegorycal.
     div_Df = CastDataTypes(div_Df)  # Cast to cathegorycal.
 
-    control_L = meta_Df[meta_Df.phenotype == args.ctr_name].sample_name.tolist()
+    control_L = meta_Df[meta_Df['phenotype'] == args.ctr_name].sample_name.tolist()
 
     if args.batches != 'None':  # Perform batch correction.
         batch_L = meta_Df[["phenotype", args.batches]]
@@ -370,10 +385,18 @@ def main():
     mwu_Df = mannwhitneyu_test(prop_Df,
                                meta_Df,
                                args)  # Compare distributions per base.
+    
+    print(prop_Df)
+    print(div_Df)
+    print(mwu_Df)
+
+
     logfc_Df, control_median_L, case_median_L = logfc(prop_Df,
                                                       meta_Df,
                                                       args)  # Compute log10FC per base.
+    print(logfc_Df)
     base_out_Df = logfc_Df.merge(mwu_Df)
+    print(base_out_Df)
     base_out_Df.to_csv("".join((args.outpath,
                                 "_logFC_p.csv")),
                        index=False)
@@ -402,12 +425,18 @@ def main():
     # Add the phenotype column to diversity Df.
     div_Df = div_Df.merge(meta_Df[["sample_name",
                                    "phenotype"]])
+    
+    print("Final checks")
+    print(div_Df)
         # Compute the FrEIA score.
     FrEIA_score_df = euclidean_FrEIA_score(prop_Df,
                                            div_Df,
                                            control_median_L.loc[control_base_L],
                                            case_median_L.loc[case_base_L],
                                            args)
+    
+
+    print(FrEIA_score_df)
     FrEIA_score_df.to_csv("".join((args.outpath,
                                    "_FrEIA_score.csv")),
                           index=False)

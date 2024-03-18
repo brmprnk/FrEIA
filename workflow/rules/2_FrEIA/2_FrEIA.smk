@@ -3,9 +3,18 @@ import numpy as np
 
 configfile: "../../../config/config.yaml"  # Set config file.
 # Read sample sheet in a dataframe.
-Samplesheet = pd.read_csv(config["Samplesheet"], delim_whitespace=True)
+Samplesheet = pd.read_csv(config["Samplesheet"], sep='\s+')
+print(Samplesheet)
+
+
+# Replace column name phenotype with group.
+Samplesheet = Samplesheet.rename(columns={"phenotype": "group"})
+
+# Write to csv with space as delimiter.
+Samplesheet.to_csv(config["Samplesheet"], sep=" ", index=False)
 
 ControlGroup = [c for c in Samplesheet["group"].unique() if "*" in c]
+print(ControlGroup)
 AffectedGroups = ",".join(np.setdiff1d(Samplesheet["group"].unique(),
                                        ControlGroup))
 ControlGroup = ControlGroup[0][:-1]
@@ -31,8 +40,8 @@ rule FrEIA_all:
         "/4_FrEIA/4_Compare/Data/Dat_GT__MDS_sample.csv",
         config["OutPath"] + "/" + ProjDirName +
         "/4_FrEIA/4_Compare/Data/Dat_GT__sample.csv",
-        config["OutPath"] + "/" + ProjDirName +
-        "/4_FrEIA/5_FrEIA_score/" + config["ProjName"] + "_corrected_tnc.csv",
+        # config["OutPath"] + "/" + ProjDirName +
+        # "/4_FrEIA/5_FrEIA_score/" + config["ProjName"] + "_corrected_tnc.csv",
         config["OutPath"] + "/" + ProjDirName +
         "/4_FrEIA/5_FrEIA_score/" + config["ProjName"] + "_FrEIA_score.csv"
 # Calculating fragment end sequence diversity and creating outputs,
@@ -120,14 +129,14 @@ rule FrEIA_score:
         config["OutPath"] + "/" + ProjDirName +
         "/4_FrEIA/4_Compare/Data/Dat_GT__sample.csv"
     output:
-        config["OutPath"] + "/" + ProjDirName +
-        "/4_FrEIA/5_FrEIA_score/" + config["ProjName"] + "_corrected_tnc.csv",
+        # config["OutPath"] + "/" + ProjDirName +
+        # "/4_FrEIA/5_FrEIA_score/" + config["ProjName"] + "_corrected_tnc.csv",
         config["OutPath"] + "/" + ProjDirName +
         "/4_FrEIA/5_FrEIA_score/" + config["ProjName"] + "_FrEIA_score.csv"
     params:
         inPath = config["OutPath"] + "/" + ProjDirName +
                  "/4_FrEIA/4_Compare/Data/",
-        metaPath = config["MetaPath"],
+        metaPath = config["Samplesheet"],
         ctrName = config["CtrName"],
         casName= config["CasName"],
         panelMed = config["PanelMed"],

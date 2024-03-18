@@ -171,7 +171,9 @@ def BaseCompAbCalc(SampleDf, group, whichEnd, lvl):
         for c in ["Unit", "Base", "WhichEnd", "WhichGroup"]:
             BCDf[c] = BCDf[c].astype("category")
 
-        OutDf = OutDf.append([BCDf]).reset_index(drop=True)
+        OutDf = pd.concat([OutDf, BCDf], ignore_index=True)
+
+        OutDf.reset_index(drop=True, inplace=True)
         # print(OutDf, group, lvl)
         # print(OutDf.info(memory_usage="deep"), "\n")
     return OutDf
@@ -386,7 +388,10 @@ def ReadData(whichGroup, pathToFile, args):
 
 def Main():
     args = ParsingArguments()
-    sampTDf = pd.read_csv(args.SampleTable, delim_whitespace=True)
+    sampTDf = pd.read_csv(args.SampleTable, sep='\s+')
+    # Replace column name phenotype with group.
+    sampTDf = sampTDf.rename(columns={"phenotype": "group"})
+    
     # Extract sample name from path.
     sampleName = args.inPath.split("/")[-1].strip(".pq")
     # Extract the group of the sample from sample sheet.

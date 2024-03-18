@@ -8,7 +8,7 @@ from multiprocessing import Pool
 from functools import partial
 import pandas as pd
 import pysam
-from Bio.SeqUtils import GC
+from Bio.SeqUtils import gc_fraction
 from FrEIA_tools import CastDataTypes
 
 
@@ -50,7 +50,7 @@ def getReadSeq(read, mate, nrBase):
         P2_seq = read.query_alignment_sequence[-nrBase:][::-1]  # Rev sequence.
         P1_seq = mate.query_alignment_sequence[:nrBase]
 
-    GC_cont = GC(read.query_alignment_sequence + mate.query_alignment_sequence)
+    GC_cont = gc_fraction(read.query_alignment_sequence + mate.query_alignment_sequence)
 
     return {"P1_seq": P1_seq,
             "P2_seq": P2_seq,
@@ -141,8 +141,13 @@ def Main():
 
     pool = Pool(processes=args.threads)
 
-    OutDf = OutDf.append(pool.map(partial(fetchData, args), ChrL),
-                         ignore_index=True)
+    # Rewrite using pd.concat
+    df_list = pool.map(partial(fetchData, args), ChrL)
+    # Prepend OutDf to the list.
+    df_list.insert(0, OutDf)
+
+    OutDf = pd.concat(df_list, ignore_index=True)
+
 
     pool.close()
     pool.join()

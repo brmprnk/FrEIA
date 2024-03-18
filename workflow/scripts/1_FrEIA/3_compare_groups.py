@@ -115,6 +115,7 @@ ChrList = ["chr1", "chr2", "chr3", "chr4", "chr5",
 def PlotFourier(data, minLen, maxLen, amplitude, Groups, Palette):
     FourierDf = pd.DataFrame(columns=["Group", "Power", "Freq"])
 
+    rows_to_concat = [FourierDf]
     for gr in Groups:
         hFourierDf = pd.DataFrame(columns=["Group", "Power", "Freq"])
 
@@ -139,7 +140,10 @@ def PlotFourier(data, minLen, maxLen, amplitude, Groups, Palette):
         hFourierDf["Freq"] = freq*((maxLen-minLen))
         hFourierDf["Group"] = gr
 
-        FourierDf = FourierDf.append([hFourierDf])
+        rows_to_concat.append(hFourierDf)
+    
+    FourierDf = pd.concat(rows_to_concat, ignore_index=True)
+
     # print(FourierDf.sort_values(by=["Power"], ascending=False))
     PlotOut = sns.lineplot(data=FourierDf,
                            x="Freq",
@@ -247,7 +251,7 @@ def HypoTest(data, group1, Groups, x, y):
                           "P-val": StatFunc(Gr1, Gr2).pvalue,
                           "Stats": StatFunc(Gr1, Gr2).statistic,
                           "Annot": AnnotFunc(StatFunc(Gr1, Gr2).pvalue)}
-                OutDf = OutDf.append(OutDic, ignore_index=True)
+                OutDf = pd.DataFrame.from_dict(OutDic)
         #! !!!!!!!!!!Do we need to correct for multiple hypothesis testing?
         # Multiple hypotesis testing correction with the Bonferroni method.
         # if len(Groups)>=20:
@@ -336,14 +340,14 @@ def CatPlot(data, kind, x, y, hue, order, orientation, row, col, palette,
                 HypoDfH = HypoTest(data[data["Unit"] == u], ControlGroup,
                                    Groups, "Base", y)
                 HypoDfH["Unit"] = u
-                HypoDf = HypoDf.append([HypoDfH]).reset_index(drop=True)
+                HypoDf = pd.concat([HypoDf, HypoDfH]).reset_index(drop=True)
         else:
             # Hypothesis testing.
             for e in set(data["WhichEnd"]):
                 HypoDfH = HypoTest(data[data["WhichEnd"] == e],
                                    ControlGroup, Groups, x, y)
                 HypoDfH["WhichEnd"] = e
-                HypoDf = HypoDf.append([HypoDfH]).reset_index(drop=True)
+                HypoDf = pd.concat([HypoDf, HypoDfH]).reset_index(drop=True)
 
         # Statistical significance plotting.
         if row is not None:
@@ -681,14 +685,15 @@ def ReadData(args, sampTDf, WhichGroup, prefix, lvl):
                      "Check if folders and files are located under "
                      "[input]/4_FrEIA/3_Abundances/")
 
-        DataDf = DataDf.append(pool.map(partial(ReadFile,
+        rows_to_concat = pool.map(partial(ReadFile,
                                                 args,
                                                 WhichGroup,
                                                 prefix,
                                                 gr,
                                                 lvl),
-                                        filenameL),
-                               ignore_index=True)
+                                        filenameL)
+        rows_to_concat.insert(0, DataDf)
+        DataDf = pd.concat(rows_to_concat, ignore_index=True)
         if len(DataDf) > 0:
             DataDf = CastDataTypes(DataDf)
         gc.collect()  # freeing memory for following steps.
@@ -834,11 +839,13 @@ def ThreadMDS(args, DataDf, groupBy, value):
     pool = Pool(processes=args.threads)
 
     try:
-        MDSDf = MDSDf.append(pool.map(partial(MotifDiversityScore,
+        rows_to_concat = pool.map(partial(MotifDiversityScore,
                                               data,
                                               groupBy,
                                               value),
-                                      GroupS), ignore_index=True)
+                                      GroupS)
+        rows_to_concat.insert(0, MDSDf)
+        MDSDf = pd.concat(rows_to_concat, ignore_index=True)
         # Creates a list of dataframes.
     except MemoryError:
         pass
@@ -902,7 +909,7 @@ def GenomeLevelAnalysis(DataDf, sampTDf, Groups, ControlGroup,
                     SavePlot(Plot, "".join((PlotOutPath, "Fig_G",
                                             MotifAbbr, str(n), ".svg")))
                     n += 1
-                Groups.append(ControlGroup)
+                Groups = pd.concat([Groups, ControlGroup])
 
     elif prefix == "M__":  # START OF MUNUNUCLEOTIDE ANALYSIS
 
@@ -1051,14 +1058,14 @@ def GenomeLevelAnalysis(DataDf, sampTDf, Groups, ControlGroup,
                                         DataDf[(DataDf["WhichGroup"] == gr)
                                         & (DataDf["Base"] == base)]["RelAbSamp"
                                                                     ][maskNA])
-                    LRDf = LRDf.append({"Group": gr,
+                    LRDf = pd.concat([LRDf, pd.DataFrame.from_dict({"Group": gr,
                                         "Base": base,
                                         "Metric": numCol,
                                         "Slope": LinReg.slope,
                                         "Intercept": LinReg.intercept,
                                         "R-val": LinReg.rvalue,
                                         "P-val": LinReg.pvalue},
-                                       ignore_index=True)
+                                       ignore_index=True)])
             if args.plot:
                 Plot = sns.lmplot(data=DataDf,
                                   x=numCol,
@@ -1242,7 +1249,7 @@ def GenomeLevelAnalysis(DataDf, sampTDf, Groups, ControlGroup,
                                             MotifAbbr, str(n), ".svg")))
 
                     n += 1  # Set figure nr.
-                Groups.append(ControlGroup)
+                Groups = pd.concat([Groups, ControlGroup])
 
             # PCA and scree plots of abundances.
             pcaL = ["PC0", "PC1", "PC2", "PC3"]
@@ -1273,13 +1280,13 @@ def GenomeLevelAnalysis(DataDf, sampTDf, Groups, ControlGroup,
                                         DataDf[(DataDf["WhichGroup"] == gr)
                                                & (DataDf["Base"] == base)
                                                ]["RelAbSamp"][maskNA])
-                    LRDf = LRDf.append({"Group": gr,
+                    LRDf = pd.concat([LRDf, pd.DataFrame.from_dict({"Group": gr,
                                         "Base": base,
                                         "Metric": numCol,
                                         "Slope": LinReg.slope,
                                         "Intercept": LinReg.intercept,
                                         "R-val": LinReg.rvalue,
-                                        "P-val": LinReg.pvalue},
+                                        "P-val": LinReg.pvalue})],
                                        ignore_index=True)
             if args.plot:
                 Plot = sns.lmplot(data=DataDf,
@@ -1464,12 +1471,12 @@ def GenomeLevelAnalysis(DataDf, sampTDf, Groups, ControlGroup,
                                                ][numCol][maskNA],
                                     MDSDf_unit[(MDSDf_unit["WhichGroup"] == gr)
                                                ]["MDS"][maskNA])
-                LRDf = LRDf.append({"Group": gr,
+                LRDf = pd.concat([LRDf, pd.DataFrame.from_dict({"Group": gr,
                                     "Metric": numCol,
                                     "Slope": LinReg.slope,
                                     "Intercept": LinReg.intercept,
                                     "R-val": LinReg.rvalue,
-                                    "P-val": LinReg.pvalue}, ignore_index=True)
+                                    "P-val": LinReg.pvalue})], ignore_index=True)
             if args.plot:
                 Plot = sns.lmplot(data=MDSDf_unit,
                                   x=numCol,
@@ -1588,7 +1595,7 @@ def ChrLevelAnalysis(DataDf, sampTDf, Groups, ControlGroup, Palette,
                                             MotifAbbr, str(n), ".svg")))
                     # Set figure nr.
                     n += 1
-                Groups.append(ControlGroup)
+                Groups = pd.concat([Groups, ControlGroup])
 
         # Motif diversity score per length.
         # Iterate through Groups separately as MDSDf
@@ -1697,7 +1704,7 @@ def SubChrLevelAnalysis(DataDf, sampTDf, Groups, ControlGroup, Palette,
                     SavePlot(Plot, "".join((PlotOutPath, "Fig_S",
                                             MotifAbbr, str(n), ".svg")))
                     n += 1
-                Groups.append(ControlGroup)
+                Groups = pd.concat([Groups, ControlGroup])
 
     else:
         MDSDf = ThreadMDS(args, DataDf, "Unit", "RelAbSamp")
@@ -1814,7 +1821,11 @@ def Main():
     WhichLvl = ["Genome_Lvl"]
     Prefixes = ["M__", "T__"]
 
-    sampTDf = pd.read_csv(args.SampleTable, delim_whitespace=True)
+    sampTDf = pd.read_csv(args.SampleTable, sep="\s+")
+
+    # Rename column phenotype to group
+    sampTDf = sampTDf.rename(columns={"phenotype": "group"})
+
     InputGroups = DetectControl(sampTDf).get("SampleGroups")
     InputControlGroup = DetectControl(sampTDf).get("ControlGroup")
 

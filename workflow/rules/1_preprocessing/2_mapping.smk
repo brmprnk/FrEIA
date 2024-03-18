@@ -97,7 +97,7 @@ rule qualimap:
     input:
         config["OutPath"] + "/" + ProjDirName + "/1_mapping/{sample}.bam"
     output:
-        dir=directory(config["OutPath"] + "/" + ProjDirName + "/1_mapping_quality/{sample}")
+        dir = config["OutPath"] + "/" + ProjDirName + "/1_mapping_quality/{sample}"
     threads: config["ThreadNr"]
     conda: "../../envs/Preprocessing_env.yaml"
     resources:
